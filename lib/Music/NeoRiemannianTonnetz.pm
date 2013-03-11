@@ -131,6 +131,8 @@ C<techno> is not a bug, though may bug some.
 
 =head1 SEE ALSO
 
+https://en.wikipedia.org/wiki/Neo-Riemannian_theory for an introduction.
+
 Various other music modules by the author, for different views on music
 theory: L<Music::AtonalUtil>, L<Music::Canon>,
 L<Music::Chord::Positions>, and more.

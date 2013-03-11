@@ -9,8 +9,9 @@ my %params = (
   ABSTRACT     => 'performs Riemann operations on triads',
   VERSION_FROM => 'lib/Music/NeoRiemannianTonnetz.pm',
   PREREQ_PM    => {
-    Carp         => 0,
-    'Test::More' => 0,
+    Carp           => 0,
+    'Scalar::Util' => 0,
+    'Test::More'   => 0,
   },
   ( $] >= 5.005
     ? ( AUTHOR => 'Jeremy Mates <jmates@cpan.org>' )

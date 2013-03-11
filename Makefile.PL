@@ -10,6 +10,7 @@ my %params = (
   VERSION_FROM => 'lib/Music/NeoRiemannianTonnetz.pm',
   PREREQ_PM    => {
     Carp           => 0,
+    'List::Util'   => 0,
     'Scalar::Util' => 0,
     'Test::More'   => 0,
   },

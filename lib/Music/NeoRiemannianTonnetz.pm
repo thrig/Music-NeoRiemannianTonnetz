@@ -9,16 +9,18 @@ use strict;
 use warnings;
 
 use Carp qw/croak/;
+use List::Util qw/min/;
 use Scalar::Util qw/reftype/;
 
 our $VERSION = '0.10';
 
+# XXX find more of these standard ops, if they have well-accepted names?
 my %TRANSFORMATIONS = (
-  'P' => sub { ... },
-  'R' => sub { ... },
-  'L' => sub { ... },
-  'N' => 'RLP', # Nebenverwandt
-  'S' => 'LPR',    # Slide
+  'P' => sub { ... },    # Parallel
+  'R' => sub { ... },    # Relative
+  'L' => sub { ... },    # Leittonwechsel
+  'N' => 'RLP',          # Nebenverwandt
+  'S' => 'LPR',          # Slide
   'H' => 'LPL',
 );
 
@@ -26,10 +28,21 @@ my %TRANSFORMATIONS = (
 #
 # SUBROUTINES
 
+sub get_default_token {
+  my ($self) = @_;
+  if ( !exists $self->{default_token} ) {
+    croak 'default_token has not been set';
+  }
+  return $self->{default_token};
+}
+
+sub get_x_table {
+  my ($self) = @_;
+  return $self->{x};
+}
+
 sub new {
   my ( $class, %param ) = @_;
-  # TODO need "default handler" if lookup something in x that does not
-  # exist - throw exception, omit, sub for some named symbol
   my $self = { x => \%TRANSFORMATIONS };
 
   # XXX or also code ref for key/value lookup, if table gets too big
@@ -38,13 +51,28 @@ sub new {
     $self->{x} = $param{x};
   }
 
+  if ( exists $param{default_token} ) {
+    $self->{default_token} = $param{default_token};
+  }
+
   bless $self, $class;
 
   return $self;
 }
 
+sub set_default_token {
+  my ( $self, $token ) = @_;
+  if ( !defined $token ) {
+    delete $self->{default_token};
+  } else {
+    $self->{default_token} = $token;
+  }
+  return $self;
+}
+
 # Turns string of tokens (e.g. 'RLP') into a list of tasks. Returns
-# array reference of such tasks.
+# array reference of such tasks. (Called by transform() if user has not
+# already done this and passes transform() a string of tokens.)
 sub taskify_tokens {
   my ( $self, $tokens, $tasks ) = @_;
   $tasks //= [];
@@ -54,12 +82,25 @@ sub taskify_tokens {
     if ( exists $self->{x}{$t} ) {
       if ( ref $self->{x}{$t} eq 'CODE' ) {
         push @$tasks, $self->{x}{$t};
-      } else {
+      } elsif ( !defined reftype $self->{x}{$t}
+        or ref $self->{x}{$t} eq 'ARRAY' ) {
         $self->taskify_tokens( $self->{x}{$t}, $tasks );
+      } else {
+        croak 'unknown token in transformation table';
       }
     } else {
-      # XXX this could instead be a default handler
-      croak "unimplemented transformation token '$t'";
+      if ( exists $self->{default_token} ) {
+        if (!defined reftype $self->{default_token}
+          or ref $self->{default_token} eq 'ARRAY' ) {
+          $self->taskify_tokens( $self->{default_token}, $tasks );
+        } elsif ( ref $self->{default_token} eq 'CODE' ) {
+          push @$tasks, $self->{default_token};
+        } else {
+          croak 'unknown default_token';
+        }
+      } else {
+        croak "unimplemented transformation token '$t'";
+      }
     }
   }
 
@@ -86,7 +127,12 @@ sub transform {
 
   # TODO find root, third, fifth of the supplied pitch set (pass through
   # anything else, so cluster chord lacking third or fifth might be a
-  # noop, regardless the tasks).
+  # noop, regardless the tasks). Hmm. Consider both "lowest as root" or
+  # Cope/Hindemith "interval root" concept (selectable via new param).
+  #
+  # also must consider simple array ref/list as simple pitch set, vs.
+  # some list o' list refs that might represent a bunch of (assumed)
+  # vertical pitch sets that all need the x done to them.
 
   my $new_pset;
 

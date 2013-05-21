@@ -1,6 +1,7 @@
 # -*- Perl -*-
 #
-# Performs Riemann operations on triads (and generates techno beats).
+# Performs Neo-Riemann operations on triads:
+# https://en.wikipedia.org/wiki/Neo-Riemannian_theory
 
 package Music::NeoRiemannianTonnetz;
 
@@ -10,24 +11,90 @@ use warnings;
 
 use Carp qw/croak/;
 use List::Util qw/min/;
+use Music::AtonalUtil ();
 use Scalar::Util qw/reftype/;
+use Try::Tiny;
 
 our $VERSION = '0.10';
 
-# XXX find more of these standard ops, if they have well-accepted names?
+# for transform table, 'x'. "SEE ALSO" section in docs has links for [refs]
 my %TRANSFORMATIONS = (
-  'P' => sub { ... },    # Parallel
-  'R' => sub { ... },    # Relative
-  'L' => sub { ... },    # Leittonwechsel
-  'N' => 'RLP',          # Nebenverwandt
-  'S' => 'LPR',          # Slide
-  'H' => 'LPL',
+  P => \&_x_parallel,          # Parallel [WP]
+  R => \&_x_relative,          # Relative [WP]
+  L => \&_x_leittonwechsel,    # Leittonwechsel [WP]
+  N => 'RLP',                  # Nebenverwandt [WP]
+  S => 'LPR',                  # Slide [WP]
+  H => 'LPL',                  # [WP]
+  D => 'LR',                   # Dominant [Cohn 1998]
 );
 
 ########################################################################
 #
 # SUBROUTINES
 
+# _x_* are internal routines that handle the details of how the normal
+# form of a particular pitch set (along with a hash reference containing
+# the normal form pitchs to array refs of the original pitches, e.g. the
+# results of a Music::AtonalUtil normal_form call) can be identified and
+# the appropriate tweaks applied to the original pitches for the NRT
+# operation in question. Return value is a pitch set (an array reference
+# of pitch numbers).
+#
+# Probably better ways, but this is a first implementation for me...
+
+sub _x_parallel {              # P
+  my ( $pset, $pset2orig ) = @_;
+  my @new_set;
+
+  ...;
+
+  @new_set = sort { $a <=> $b } @new_set;
+  return \@new_set;
+}
+
+sub _x_relative {              # R
+  my ( $pset, $pset2orig ) = @_;
+  my @new_set;
+
+  # XXX better way than strcmp to see if members of array exactly match?
+  local $" = '';
+  if ( "@$pset" eq '037' ) {
+    for my $i ( keys %$pset2orig ) {
+      if ( $i == 3 ) {
+        push @new_set, map { $_ + 1 } @{ $pset2orig->{$i} };
+      } else {
+        push @new_set, @{ $pset2orig->{$i} };
+      }
+    }
+  } elsif ( "@$pset" eq '047' ) {
+    for my $i ( keys %$pset2orig ) {
+      if ( $i == 4 ) {
+        push @new_set, map { $_ - 1 } @{ $pset2orig->{$i} };
+      } else {
+        push @new_set, @{ $pset2orig->{$i} };
+      }
+    }
+  } else {
+    # XXX call "handle unknown" sub or bail or passthrough, depending
+    ...;
+  }
+
+  @new_set = sort { $a <=> $b } @new_set;
+  return \@new_set;
+}
+
+sub _x_leittonwechsel {    # L
+  my ( $pset, $pset2orig ) = @_;
+  my @new_set;
+
+  ...;
+
+  @new_set = sort { $a <=> $b } @new_set;
+  return \@new_set;
+}
+
+# used as fall-through if set if find something do not know what to do
+# with in transform table
 sub get_default_token {
   my ($self) = @_;
   if ( !exists $self->{default_token} ) {
@@ -36,6 +103,7 @@ sub get_default_token {
   return $self->{default_token};
 }
 
+# Transform table, 'x'
 sub get_x_table {
   my ($self) = @_;
   return $self->{x};
@@ -45,7 +113,12 @@ sub new {
   my ( $class, %param ) = @_;
   my $self = { x => \%TRANSFORMATIONS };
 
-  # XXX or also code ref for key/value lookup, if table gets too big
+  # atonal normal_form used to classify chords and thus what rules to apply
+  $self->{_atu} =
+    exists $param{atu}
+    ? $param{atu}
+    : Music::AtonalUtil->new;
+
   if ( exists $param{x} ) {
     croak 'x must be hash reference' unless ref $param{x} eq 'HASH';
     $self->{x} = $param{x};
@@ -70,13 +143,26 @@ sub set_default_token {
   return $self;
 }
 
-# Turns string of tokens (e.g. 'RLP') into a list of tasks. Returns
-# array reference of such tasks. (Called by transform() if user has not
-# already done this and passes transform() a string of tokens.)
+sub set_x_table {
+  my ( $self, $table ) = @_;
+  croak 'transformation table must be hash reference'
+    unless ref $table eq 'HASH';
+  $self->{x} = $table;
+  return $self;
+}
+
+# Turns string of tokens (e.g. 'RLP') into a list of tasks (CODE refs,
+# or more strings, which are recursed on until CODE refs or error).
+# Returns array reference of such tasks. Called by transform() if user
+# has not already done this and passes transform() a string of tokens.
 sub taskify_tokens {
   my ( $self, $tokens, $tasks ) = @_;
   $tasks //= [];
-  $tokens = [ split '', $tokens ] if !defined reftype $tokens;
+  $tokens = [ $tokens =~ m/([A-Z][a-z0-9]*)/g ] if !defined reftype $tokens;
+
+  # XXX optimize input? - runs of R can be reduced, as those just toggle
+  # the third - even number of R a no-op, odd number of R can be
+  # replaced with 'R'. Other optimizations are likely possible.
 
   for my $t (@$tokens) {
     if ( exists $self->{x}{$t} ) {
@@ -104,16 +190,19 @@ sub taskify_tokens {
     }
   }
 
+  # TODO include the name of the operation in the list, so that is
+  # available? would need return list of hash refs or something
   return $tasks;
 }
 
 sub techno { shift; (qw/tonn tz/) x ( 8 * ( shift || 1 ) ) }
 
 sub transform {
-  my $self = shift;
-  croak 'need tokens and pitch set' if @_ < 2;
+  my $self   = shift;
   my $tokens = shift;
   croak 'tokens must be defined' unless defined $tokens;
+  my $pset = ref $_[0] eq 'ARRAY' ? $_[0] : [@_];
+  croak 'pitch set must contain something' if !@$pset;
 
   # Assume list of tasks (code refs to call) if array ref, otherwise try
   # to generate such a list.
@@ -121,22 +210,17 @@ sub transform {
   if ( ref $tokens eq 'ARRAY' ) {
     $tasks = $tokens;
   } else {
-    eval { $tasks = $self->taskify_tokens($tokens) };
-    croak $@ if $@;
+    try { $tasks = $self->taskify_tokens($tokens) } catch { croak $_ };
   }
 
-  # TODO find root, third, fifth of the supplied pitch set (pass through
-  # anything else, so cluster chord lacking third or fifth might be a
-  # noop, regardless the tasks). Hmm. Consider both "lowest as root" or
-  # Cope/Hindemith "interval root" concept (selectable via new param).
-  #
-  # also must consider simple array ref/list as simple pitch set, vs.
-  # some list o' list refs that might represent a bunch of (assumed)
-  # vertical pitch sets that all need the x done to them.
-
-  my $new_pset;
-
-  # TODO apply tasks
+  my $new_pset = [@$pset];
+  for my $task (@$tasks) {
+    try { $new_pset = $task->( $self->{_atu}->normal_form($new_pset) ); }
+    catch {
+      # XXX or have callback or ignore or whatever
+      croak "could not apply task: $_";
+    }
+  }
 
   return $new_pset;
 }
@@ -153,10 +237,11 @@ Music::NeoRiemannianTonnetz - performs Riemann operations on triads
   use Music::NeoRiemannianTonnetz;
   my $nrt = Music::NeoRiemannianTonnetz->new;
 
-  my $new_pitch_set = $nrt->transform('RLPP', [0, 4, 7]);
+  # "relative" changes Major to minor
+  $nrt->transform('R', [60, 64, 67]);   # [60, 63, 67]
 
   my $tasks = $nrt->taskify_tokens('LPR');
-  my $new_pitch_set = $nrt->transform($tasks, [0, 4, 7]);
+  my $new_pitch_set = $nrt->transform($tasks, [0,3,7]);
 
 =head1 DESCRIPTION
 
@@ -177,11 +262,29 @@ C<techno> is not a bug, though may bug some.
 
 =head1 SEE ALSO
 
-https://en.wikipedia.org/wiki/Neo-Riemannian_theory for an introduction.
+=over 4
+
+=item *
+
+[WP] https://en.wikipedia.org/wiki/Neo-Riemannian_theory as an
+introduction.
+
+=item *
+
+[Cohn 1998] "Introduction to Neo-Riemannian Theory: A Survey and a
+Historical Perspective" by Richard Cohn. Journal of Music Theory, Vol.
+42, No. 2, Neo-Riemannian Theory (Autumn, 1998), pp. 167-180.
+
+See also the entire Journal of Music Theory Vol. 42, No. 2, Autumn, 1998
+publication: L<http://www.jstor.org/stable/i235025>
+
+=item *
 
 Various other music modules by the author, for different views on music
 theory: L<Music::AtonalUtil>, L<Music::Canon>,
-L<Music::Chord::Positions>, and more.
+L<Music::Chord::Positions>, among others.
+
+=back
 
 =head1 AUTHOR
 

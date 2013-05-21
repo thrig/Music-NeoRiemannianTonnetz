@@ -15,6 +15,7 @@ isa_ok( $Nrt, 'Music::NeoRiemannianTonnetz' );
 
 taskify_tokens();
 techno();
+transform();
 
 sub taskify_tokens {
   my $tasks = $Nrt->taskify_tokens('P');
@@ -35,4 +36,12 @@ sub techno {
   $deeply->( [ $Nrt->techno(4) ], \@even_more_techno, 'even more tonn tz' );
 }
 
-plan tests => 8;
+sub transform {
+  # flip minor|major traids
+  my $pset = $Nrt->transform( 'R', [ 60, 63, 67 ] );
+  $deeply->( $pset, [ 60, 64, 67 ] );
+  $pset = $Nrt->transform( 'R', $pset );
+  $deeply->( $pset, [ 60, 63, 67 ] );
+}
+
+plan tests => 10;

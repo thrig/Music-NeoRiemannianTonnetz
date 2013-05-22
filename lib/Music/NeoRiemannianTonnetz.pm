@@ -11,11 +11,12 @@ use warnings;
 
 use Carp qw/croak/;
 use List::Util qw/min/;
-use Music::AtonalUtil ();
 use Scalar::Util qw/reftype/;
 use Try::Tiny;
 
 our $VERSION = '0.10';
+
+my $DEG_IN_SCALE = 12;
 
 # for transform table, 'x'. "SEE ALSO" section in docs has links for [refs]
 my %TRANSFORMATIONS = (
@@ -25,40 +26,50 @@ my %TRANSFORMATIONS = (
   N => 'RLP',                  # Nebenverwandt [WP]
   S => 'LPR',                  # Slide [WP]
   H => 'LPL',                  # [WP]
-  D => 'LR',                   # Dominant [Cohn 1998]
 );
 
 ########################################################################
 #
 # SUBROUTINES
 
-# _x_* are internal routines that handle the details of how the normal
-# form of a particular pitch set (along with a hash reference containing
-# the normal form pitchs to array refs of the original pitches, e.g. the
-# results of a Music::AtonalUtil normal_form call) can be identified and
-# the appropriate tweaks applied to the original pitches for the NRT
-# operation in question. Return value is a pitch set (an array reference
-# of pitch numbers).
-#
-# Probably better ways, but this is a first implementation for me...
-
-sub _x_parallel {              # P
-  my ( $pset, $pset2orig ) = @_;
+sub _x_leittonwechsel {
+  my ( $pset_str, $pset2orig ) = @_;
   my @new_set;
 
-  ...;
+  if ( $pset_str eq '0,3,7' ) {
+    # minor - 5th up by semitone
+    for my $i ( keys %$pset2orig ) {
+      if ( $i == 7 ) {
+        push @new_set, map { $_ + 1 } @{ $pset2orig->{$i} };
+      } else {
+        push @new_set, @{ $pset2orig->{$i} };
+      }
+    }
+  } elsif ( $pset_str eq '0,4,7' ) {
+    # major - root moves down semitone
+    for my $i ( keys %$pset2orig ) {
+      if ( $i == 0 ) {
+        push @new_set, map { $_ - 1 } @{ $pset2orig->{$i} };
+      } else {
+        push @new_set, @{ $pset2orig->{$i} };
+      }
+    }
+  } else {
+    # XXX call "handle unknown" sub or passthrough would be a good
+    # alternatives
+    croak "unknown pitch set [$pset_str]";
+  }
 
   @new_set = sort { $a <=> $b } @new_set;
   return \@new_set;
 }
 
-sub _x_relative {              # R
-  my ( $pset, $pset2orig ) = @_;
+sub _x_parallel {
+  my ( $pset_str, $pset2orig ) = @_;
   my @new_set;
 
-  # XXX better way than strcmp to see if members of array exactly match?
-  local $" = '';
-  if ( "@$pset" eq '037' ) {
+  if ( $pset_str eq '0,3,7' ) {
+    # minor - Major the 3rd
     for my $i ( keys %$pset2orig ) {
       if ( $i == 3 ) {
         push @new_set, map { $_ + 1 } @{ $pset2orig->{$i} };
@@ -66,7 +77,8 @@ sub _x_relative {              # R
         push @new_set, @{ $pset2orig->{$i} };
       }
     }
-  } elsif ( "@$pset" eq '047' ) {
+  } elsif ( $pset_str eq '0,4,7' ) {
+    # Major - major the 3rd
     for my $i ( keys %$pset2orig ) {
       if ( $i == 4 ) {
         push @new_set, map { $_ - 1 } @{ $pset2orig->{$i} };
@@ -75,19 +87,42 @@ sub _x_relative {              # R
       }
     }
   } else {
-    # XXX call "handle unknown" sub or bail or passthrough, depending
-    ...;
+    # XXX call "handle unknown" sub or passthrough would be a good
+    # alternatives
+    croak "unknown pitch set [$pset_str]";
   }
 
   @new_set = sort { $a <=> $b } @new_set;
   return \@new_set;
 }
 
-sub _x_leittonwechsel {    # L
-  my ( $pset, $pset2orig ) = @_;
+sub _x_relative {
+  my ( $pset_str, $pset2orig ) = @_;
   my @new_set;
 
-  ...;
+  if ( $pset_str eq '0,3,7' ) {
+    # minor - move root down a tone
+    for my $i ( keys %$pset2orig ) {
+      if ( $i == 0 ) {
+        push @new_set, map { $_ - 2 } @{ $pset2orig->{$i} };
+      } else {
+        push @new_set, @{ $pset2orig->{$i} };
+      }
+    }
+  } elsif ( $pset_str eq '0,4,7' ) {
+    # major - move 5th up a tone
+    for my $i ( keys %$pset2orig ) {
+      if ( $i == 7 ) {
+        push @new_set, map { $_ + 2 } @{ $pset2orig->{$i} };
+      } else {
+        push @new_set, @{ $pset2orig->{$i} };
+      }
+    }
+  } else {
+    # XXX call "handle unknown" sub or passthrough would be a good
+    # alternatives
+    croak "unknown pitch set [$pset_str]";
+  }
 
   @new_set = sort { $a <=> $b } @new_set;
   return \@new_set;
@@ -104,33 +139,103 @@ sub get_default_token {
 }
 
 # Transform table, 'x'
-sub get_x_table {
-  my ($self) = @_;
-  return $self->{x};
-}
+sub get_x_table { $_[0]->{x} }
 
 sub new {
   my ( $class, %param ) = @_;
   my $self = { x => \%TRANSFORMATIONS };
 
-  # atonal normal_form used to classify chords and thus what rules to apply
-  $self->{_atu} =
-    exists $param{atu}
-    ? $param{atu}
-    : Music::AtonalUtil->new;
+  if ( exists $param{default_token} ) {
+    $self->{default_token} = $param{default_token};
+  }
+
+  # should not need to alter, but who knows
+  $self->{_DEG_IN_SCALE} = int( $param{DEG_IN_SCALE} // $DEG_IN_SCALE );
+  if ( $self->{_DEG_IN_SCALE} < 2 ) {
+    croak 'degrees in scale must be greater than one';
+  }
 
   if ( exists $param{x} ) {
     croak 'x must be hash reference' unless ref $param{x} eq 'HASH';
     $self->{x} = $param{x};
   }
 
-  if ( exists $param{default_token} ) {
-    $self->{default_token} = $param{default_token};
-  }
-
   bless $self, $class;
 
   return $self;
+}
+
+# Based on normal_form of Music::AtonalUtil but always transposes to
+# zero (cannot use prime_form, as that goes one step too far and
+# conflates [0,4,7] with [0,3,7] which here must be distinct).
+sub normalize {
+  my $self = shift;
+  my $pset = ref $_[0] eq 'ARRAY' ? $_[0] : [@_];
+
+  croak 'pitch set must contain something' if !@$pset;
+
+  my %origmap;
+  for my $p (@$pset) {
+    push @{ $origmap{ $p % $self->{_DEG_IN_SCALE} } }, $p;
+  }
+  if ( keys %origmap == 1 ) {
+    return keys %origmap, \%origmap;
+  }
+  my @nset = sort { $a <=> $b } keys %origmap;
+
+  my @equivs;
+  for my $i ( 0 .. $#nset ) {
+    for my $j ( 0 .. $#nset ) {
+      $equivs[$i][$j] = $nset[ ( $i + $j ) % @nset ];
+    }
+  }
+  my @order = reverse 1 .. $#nset;
+
+  my @normal;
+  for my $i (@order) {
+    my $min_span = $self->{_DEG_IN_SCALE};
+    my @min_span_idx;
+
+    for my $eidx ( 0 .. $#equivs ) {
+      my $span =
+        ( $equivs[$eidx][$i] - $equivs[$eidx][0] ) % $self->{_DEG_IN_SCALE};
+      if ( $span < $min_span ) {
+        $min_span     = $span;
+        @min_span_idx = $eidx;
+      } elsif ( $span == $min_span ) {
+        push @min_span_idx, $eidx;
+      }
+    }
+
+    if ( @min_span_idx == 1 ) {
+      @normal = @{ $equivs[ $min_span_idx[0] ] };
+      last;
+    } else {
+      @equivs = @equivs[@min_span_idx];
+    }
+  }
+
+  if ( !@normal ) {
+    # nothing unique, pick lowest starting pitch, which is first index
+    # by virtue of the numeric sort performed above.
+    @normal = @{ $equivs[0] };
+  }
+
+  # but must map <b dis fis> (and anything else not <c e g>) so b is 0,
+  # dis 4, etc. and also update the original pitch mapping - this is
+  # the major addition to the otherwise stock normal_form code.
+  if ( $normal[0] != 0 ) {
+    my $trans = $self->{_DEG_IN_SCALE} - $normal[0];
+    my %newmap;
+    for my $i (@normal) {
+      my $prev = $i;
+      $i = ( $i + $trans ) % $self->{_DEG_IN_SCALE};
+      $newmap{$i} = $origmap{$prev};
+    }
+    %origmap = %newmap;
+  }
+
+  return join( ',', @normal ), \%origmap;
 }
 
 sub set_default_token {
@@ -160,9 +265,9 @@ sub taskify_tokens {
   $tasks //= [];
   $tokens = [ $tokens =~ m/([A-Z][a-z0-9]*)/g ] if !defined reftype $tokens;
 
-  # XXX optimize input? - runs of R can be reduced, as those just toggle
-  # the third - even number of R a no-op, odd number of R can be
-  # replaced with 'R'. Other optimizations are likely possible.
+  # XXX optimize input? - runs of P can be reduced, as those just toggle
+  # the third - even number of P a no-op, odd number of P can be
+  # replaced with 'P'. Other optimizations are likely possible.
 
   for my $t (@$tokens) {
     if ( exists $self->{x}{$t} ) {
@@ -215,11 +320,7 @@ sub transform {
 
   my $new_pset = [@$pset];
   for my $task (@$tasks) {
-    try { $new_pset = $task->( $self->{_atu}->normal_form($new_pset) ); }
-    catch {
-      # XXX or have callback or ignore or whatever
-      croak "could not apply task: $_";
-    }
+    $new_pset = $task->( $self->normalize($new_pset) );
   }
 
   return $new_pset;
@@ -237,19 +338,127 @@ Music::NeoRiemannianTonnetz - performs Riemann operations on triads
   use Music::NeoRiemannianTonnetz;
   my $nrt = Music::NeoRiemannianTonnetz->new;
 
-  # "relative" changes Major to minor
-  $nrt->transform('R', [60, 64, 67]);   # [60, 63, 67]
+  # "parallel" changes Major to minor
+  $nrt->transform('P', [60, 64, 67]);   # [60, 63, 67]
 
   my $tasks = $nrt->taskify_tokens('LPR');
   my $new_pitch_set = $nrt->transform($tasks, [0,3,7]);
 
 =head1 DESCRIPTION
 
-TODO
+Offers a means to perform Neo-Riemannian operations (e.g. C<LPR>) on
+major and minor triads (and only those triads, at the moment). In
+theory, should be extensible to support other transformations on other
+pitch sets (e.g. 7ths, as detailed in the literature), but that would
+require more work and reading.
+
+This is a very new module, use with caution, things may change, etc.
+
+=head2 TRANSFORMATIONS
+
+Available operations (sometimes called "tokens" in this module) for the
+B<transform> method include:
+
+  P  Parallel
+  R  Relative
+  L  Leittonwechsel
+  N  Nebenverwandt (RLP)
+  S  Slide (LPR)
+  H  "hexatonic pole exchange" (LPL)
 
 =head1 METHODS
 
-TODO
+The code may C<croak> if something goes awry; catch these errors with
+e.g. L<Try::Tiny>. The B<new> method is doubtless a good one to begin
+with, and then B<transform> to just experiment around with the
+transformations.
+
+=over 4
+
+=item B<get_default_token>
+
+Returns the default token, or otherwise throws an error if that has
+not been set.
+
+=item B<get_x_table>
+
+Returns the transformation table, a hash reference.
+
+=item B<new> I<parameter_pairs ...>
+
+Constructor.
+
+=over 4
+
+=item B<default_token>
+
+A token to use should the B<taskify_tokens> method be unable to convert
+an element of the tasks lists to a CODE reference via the transformation
+table. The default token should either be a CODE reference or a string
+of (hopefully extant!) token names, e.g. C<RLP>.
+
+=item B<DEG_IN_SCALE>
+
+A 12-tone system is assumed, though may be changed, though I have no
+idea what that would do.
+
+  Music::NeoRiemannianTonnetz->new(DEG_IN_SCALE => 17);
+
+=item B<x>
+
+Hash reference to set a custom transformation table. Read the source to
+figure out what this needs to be.
+
+=back
+
+=item B<normalize> I<pitch_set>
+
+Normalizes the given pitch set (a list or array reference of pitch
+numbers, which in turn should be integers) via code that is something
+like B<normal_form> of L<Music::AtonalUtil> but slightly different.
+Returns a string of the normalized pitch set (such as C<0,4,7> for a
+Major triad), and a hash reference that maps the normalized pitch set
+pitch numbers to the original pitches of the input I<pitch_set>.
+
+This method is used internally by the B<transform> method.
+
+=item B<set_default_token> I<token>
+
+Sets the default token. See the B<default_token> parameter docs to the
+B<new> method for details. Returns the object, so can be chained.
+
+=item B<set_x_table> I<hashref>
+
+Sets the transformation table. See source, etc. Returns the object, so
+can be chained.
+
+=item B<taskify_tokens> I<tokens>, [ I<tasks> ]
+
+Converts tokens (a string such as C<RLP> (three tokens, C<R>, C<L>, and
+C<P>), or an array reference of such) to a list of tasks (CODE
+references) returned as an array reference, assuming all went well with
+the taskification.
+
+=item B<techno> [ I<measurecount> ]
+
+Generates techno beats (returned as a list). The optional
+I<measurecount> should be a positive integer, and doubtless a
+power of two.
+
+=item B<transform> I<tokens>, I<pitch_set>
+
+Transforms the given I<pitch_set> (a list or array reference of pitch
+numbers, ideally integers) via the given I<tokens>. If I<tokens> is
+not an array reference, it is fed through the B<taskify_tokens>
+method first. Returns the new pitch set (as an array reference) if
+all goes well.
+
+The resulting pitch set will be ordered from lowest pitch to highest;
+Neo-Riemannian theory appears to care little about chord inversions, so
+operations will often convert root position chords between 1st or 2nd
+inversions, depending on the starting chord and operations in question.
+
+=back
 
 =head1 BUGS
 
@@ -275,7 +484,7 @@ introduction.
 Historical Perspective" by Richard Cohn. Journal of Music Theory, Vol.
 42, No. 2, Neo-Riemannian Theory (Autumn, 1998), pp. 167-180.
 
-See also the entire Journal of Music Theory Vol. 42, No. 2, Autumn, 1998
+And also the entire Journal of Music Theory Vol. 42, No. 2, Autumn, 1998
 publication: L<http://www.jstor.org/stable/i235025>
 
 =item *

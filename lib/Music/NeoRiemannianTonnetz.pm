@@ -697,8 +697,7 @@ Token names are at present defined to be upper case ASCII letters (A-Z),
 followed by zero to many lower case ASCII letters or numbers (a-z0-9).
 Tokens will not perform any changes to a pitch set unless suitable code
 is added to the transformation table (a hash of token names to CODE
-references). There are only three token with CODE references, the others
-expand to multiple calls to these three most primitive operations.
+references).
 
 =head1 METHODS
 
@@ -778,6 +777,9 @@ class conflates these different forms into the same Forte Number
 operations must do different things depending on whether the triad is
 major or minor, or is C<[0,3,6,8]> or C<[0,2,5,8]>.
 
+There are scripts under the C<eg/> directory of the distribution of this
+module that explore the normalize/atonal prime form set space.
+
 =item B<set_default_token> I<token>
 
 Sets the default token. See the B<default_token> parameter docs to the
@@ -810,13 +812,18 @@ method first. Returns the new pitch set (as an array reference) if
 all goes well.
 
 The resulting pitch set will be ordered from lowest pitch to highest;
-Neo-Riemannian theory appears to care little about chord inversions, so
-operations will often convert root position chords between 1st or 2nd
-inversions, depending on the starting chord and operations in question.
+Neo-Riemannian theory cares little about chord inversions, and will
+convert root position chords to and from various inversions:
+
+  # C-major to F-minor (2nd inversion)
+  $nrt->transform('N', 60, 64, 67); # [60, 65, 68]
 
 =back
 
 =head1 BUGS
+
+Too much boilerplate code to apply the pitch changes, need to abstract
+out the important bits from the C<_x_*> subs.
 
 Newer versions of this module may be available from CPAN. If the bug is
 in the latest version, check:
@@ -827,43 +834,27 @@ C<techno> is not a bug, though may bug some.
 
 =head1 SEE ALSO
 
-=over 4
-
-=item *
-
 [WP] L<https://en.wikipedia.org/wiki/Neo-Riemannian_theory> as an
 introduction.
-
-=item *
 
 L<https://en.wikipedia.org/wiki/Forte_number> for a description of the
 C<3-11> and other set class names used in this documentation.
 
-=item *
-
 [Cohn 1998] "Introduction to Neo-Riemannian Theory: A Survey and a
 Historical Perspective" by Richard Cohn. Journal of Music Theory, Vol.
 42, No. 2, Neo-Riemannian Theory (Autumn, 1998), pp. 167-180.
-
-=item *
 
 [Childs 1998] "Moving beyond Neo-Riemannian Triads: Exploring a
 Transformational Model for Seventh Chords" by Adrian P. Childs. Journal
 of Music Theory, Vol. 42, No. 2, Neo-Riemannian Theory (Autumn, 1998),
 pp. 181-193.
 
-=item *
-
 And also the rest of the Journal of Music Theory Vol. 42, No. 2, Autumn,
 1998 publication: L<http://www.jstor.org/stable/i235025>
-
-=item *
 
 Various other music modules by the author, for different views on music
 theory: L<Music::AtonalUtil>, L<Music::Canon>,
 L<Music::Chord::Positions>, L<Music::LilyPondUtil>, etc.
-
-=back
 
 =head1 AUTHOR
 

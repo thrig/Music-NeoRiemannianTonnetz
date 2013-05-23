@@ -4,3 +4,4 @@ README
 t/Music-NeoRiemannianTonnetz.t
 lib/Music/NeoRiemannianTonnetz.pm
 LICENSE t/pod.t
+eg/nrt-normalize-notes

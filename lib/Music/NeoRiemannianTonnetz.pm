@@ -14,7 +14,7 @@ use List::Util qw/min/;
 use Scalar::Util qw/reftype/;
 use Try::Tiny;
 
-our $VERSION = '0.21';
+our $VERSION = '0.22';
 
 my $DEG_IN_SCALE = 12;
 
@@ -91,7 +91,7 @@ sub _apply_operation {
 
   # reformulate the (updated) original pitches into new pitch set
   my @new_set;
-  for my $r ( values $pset2orig ) {
+  for my $r ( values %$pset2orig ) {
     push @new_set, @$r;
   }
 

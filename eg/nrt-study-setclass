@@ -42,9 +42,12 @@ my $lyu = Music::LilyPondUtil->new(
 );
 my $nrt = Music::NeoRiemannianTonnetz->new;
 
-GetOptions( 'invary|i=i' => \my $Flag_Invary_Count ) or @ARGV = ();
+GetOptions(
+  'exclusive|E' => \my $Flag_Exclusive,
+  'invary|i=i'  => \my $Flag_Invary_Count,
+) or @ARGV = ();
 if ( !@ARGV ) {
-  warn "Usage: $0 --invary=# forte-number|list of pitches\n";
+  warn "Usage: $0 --invary=# [--exclusive|-E] forte-number|list of pitches\n";
   exit 64;
 }
 my $pitch_set;
@@ -88,6 +91,7 @@ if ( $Flag_Invary_Count >= @$pitch_set ) {
     scalar(@$pitch_set), " element set class\n";
 }
 
+# In hindsight these could be set with the -G flag to neato or whatnot
 say <<"GRAPHVIZ_HEADER";
 graph links {
   size="32,32";
@@ -98,6 +102,28 @@ GRAPHVIZ_HEADER
 
 my %seen;
 for my $pset ( keys %variations ) {
+  # Exclude any three invariant pitch matches if given for example 4-27
+  # and --invary=2.
+  if ($Flag_Exclusive) {
+    my $higher_invary_count = @$pitch_set - $Flag_Invary_Count;
+    if ( $higher_invary_count > 1 ) {
+      for my $i ( $Flag_Invary_Count + 1 .. @$pitch_set - 1 ) {
+        my $c = Math::Combinatorics->new(
+          count => $i,
+          data  => bits2ps($pset),
+        );
+        while ( my @tomask = $c->next_combination ) {
+          my $invary_mask = ps2bits( \@tomask );
+          for my $set ( keys %variations ) {
+            if ( $invary_mask == ( $set & $invary_mask ) ) {
+              $seen{ join ':', sort $pset, $set }++;
+            }
+          }
+        }
+      }
+    }
+  }
+
   my $c = Math::Combinatorics->new(
     count => $Flag_Invary_Count,
     data  => bits2ps($pset),
@@ -109,7 +135,7 @@ for my $pset ( keys %variations ) {
       next if $pset == $set;    # exclude link to self
       if ( $invary_mask == ( $set & $invary_mask ) ) {
         # omit "b to a" if already have "a to b" for cleaner output
-        next if $seen{join ':', sort $pset, $set}++;
+        next if $seen{ join ':', sort $pset, $set }++;
 
         printf qq{  "%s" -- "%s";\n}, ps2str( bits2ps($pset) ),
           ps2str( bits2ps($set) );

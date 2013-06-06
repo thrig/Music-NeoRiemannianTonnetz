@@ -1,7 +1,9 @@
+Changes
 LICENSE
 MANIFEST
 Makefile.PL
 README
+SIGNATURE
 eg/nrt-normalize-notes
 eg/nrt-primes-to-normalized
 eg/nrt-study-setclass

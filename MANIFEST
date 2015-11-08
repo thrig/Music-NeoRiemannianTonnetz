@@ -8,5 +8,6 @@ eg/nrt-normalize-notes
 eg/nrt-primes-to-normalized
 eg/nrt-study-setclass
 lib/Music/NeoRiemannianTonnetz.pm
+t/00-load.t
 t/Music-NeoRiemannianTonnetz.t
 t/pod.t

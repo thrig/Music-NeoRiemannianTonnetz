@@ -3,13 +3,11 @@
 use strict;
 use warnings;
 
-use Test::More;    # plan is down at bottom
-use Test::Exception;
+use Test::Most;    # plan is down at bottom
 
-eval 'use Test::Differences';    # display convenience
-my $deeply = $@ ? \&is_deeply : \&eq_or_diff;
+my $deeply = \&eq_or_diff;    # from Test::Differences
 
-BEGIN { use_ok('Music::NeoRiemannianTonnetz') }
+use Music::NeoRiemannianTonnetz;
 
 my $Nrt = Music::NeoRiemannianTonnetz->new;
 isa_ok( $Nrt, 'Music::NeoRiemannianTonnetz' );
@@ -27,7 +25,7 @@ sub taskify_tokens {
   $tasks = $Nrt->taskify_tokens('N');    # should expand to RLP
   is( scalar @$tasks, 3, 'three step task count' );
   is( scalar( grep { ref $_->[1] eq 'CODE' ? 1 : () } @$tasks ),
-    3, 'three little code refs' );
+    3, 'three little code refs, see how they run' );
 }
 
 sub techno {
@@ -212,4 +210,4 @@ sub transform_4_27 {
   );
 }
 
-plan tests => 41;
+plan tests => 40;

@@ -16,6 +16,7 @@ taskify_tokens();
 techno();
 transform_3_11();
 transform_4_27();
+woofer();
 
 sub taskify_tokens {
   my $tasks = $Nrt->taskify_tokens('P');
@@ -210,4 +211,12 @@ sub transform_4_27 {
   );
 }
 
-plan tests => 40;
+sub woofer {
+  my @beats           = (qw/tonn/) x 8;
+  my @even_more_beats = (qw/tonn/) x 32;
+
+  $deeply->( [ $Nrt->woofer ],    \@beats,           'woofer' );
+  $deeply->( [ $Nrt->woofer(4) ], \@even_more_beats, 'even more woofer' );
+}
+
+plan tests => 42;

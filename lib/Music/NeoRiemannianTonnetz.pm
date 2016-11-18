@@ -250,6 +250,8 @@ sub transform {
   return $new_pset;
 }
 
+sub woofer { shift; (qw/tonn/) x ( 8 * ( shift || 1 ) ) }
+
 1;
 __END__
 
@@ -424,6 +426,11 @@ convert root position chords to and from various inversions:
 
   # C-major to F-minor (2nd inversion)
   $nrt->transform('N', 60, 64, 67); # [60, 65, 68]
+
+=item B<woofer> [ I<measurecount> ]
+
+Generates bass beats (returned as a list). The optional I<measurecount>
+should be a positive integer, and doubtless a power of two.
 
 =back
 

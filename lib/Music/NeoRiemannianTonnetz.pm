@@ -12,9 +12,8 @@ use warnings;
 use Carp qw/croak/;
 use List::Util qw/min/;
 use Scalar::Util qw/reftype/;
-use Try::Tiny;
 
-our $VERSION = '0.27';
+our $VERSION = '0.28';
 
 my $DEG_IN_SCALE = 12;
 
@@ -234,19 +233,18 @@ sub transform {
   if ( ref $tokens eq 'ARRAY' ) {
     $tasks = $tokens;
   } else {
-    try { $tasks = $self->taskify_tokens($tokens) } catch { croak $_ };
+    eval { $tasks = $self->taskify_tokens($tokens) };
+    croak $@ if $@;
   }
 
   my $new_pset = $pset;
-  try {
+  eval {
     for my $task (@$tasks) {
       $new_pset =
         $task->[1]->( $self, $task->[0], $self->normalize($new_pset) );
     }
-  }
-  catch {
-    croak $_;
   };
+  croak $@ if $@;
   return $new_pset;
 }
 

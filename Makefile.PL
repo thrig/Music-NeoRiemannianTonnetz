@@ -33,7 +33,6 @@ my %params = (
     Carp              => 0,
     'List::Util'      => 0,
     'Scalar::Util'    => 0,
-    'Try::Tiny'       => 0,
   },
 
   META_MERGE => {
